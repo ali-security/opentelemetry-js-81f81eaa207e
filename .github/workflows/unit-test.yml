@@ -1,10 +1,6 @@
 name: Unit Tests
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-  merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,9 +16,11 @@ jobs:
           - "20.6.0"
           - "20"
           - "22"
+          - "23"
           - "24"
           - "25"
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -43,10 +41,11 @@ jobs:
           matrix.node_version == '18' ||
           matrix.node_version == '20.6.0'
           }}
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@"<12.0.0"
         if: ${{
           matrix.node_version == '20' ||
           matrix.node_version == '22' ||
+          matrix.node_version == '23' ||
           matrix.node_version == '24' ||
           matrix.node_version == '25'
           }}
@@ -59,14 +58,23 @@ jobs:
 
       - run: npm test
 
-      - name: Report Coverage
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Pack @opentelemetry/core
+        if: ${{ matrix.node_version == '23' }}
+        run: |
+          mkdir -p dist-artifacts
+          npm pack --workspace=packages/opentelemetry-core --pack-destination=./dist-artifacts
+          mv ./dist-artifacts/opentelemetry-core-2.5.0.tgz ./dist-artifacts/core-2.5.0.tgz
+
+      - name: Upload package tarball
+        if: ${{ matrix.node_version == '23' }}
+        uses: actions/upload-artifact@v4
         with:
-          verbose: true
+          name: npm-tarball
+          path: dist-artifacts/core-2.5.0.tgz
+          if-no-files-found: error
   node-windows-tests:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -78,7 +86,7 @@ jobs:
             package-lock.json
           node-version: '22'
 
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@"<12.0.0"
 
       - name: Bootstrap
         run: npm ci --ignore-scripts
@@ -92,6 +100,7 @@ jobs:
         run: npm run test
   browser-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -111,14 +120,9 @@ jobs:
 
       - name: Unit tests
         run: npm run test:browser
-      - name: Report Coverage
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          verbose: true
   webworker-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -137,9 +141,3 @@ jobs:
 
       - name: Unit tests
         run: npm run test:webworker
-      - name: Report Coverage
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          verbose: true
